@@ -49,7 +49,7 @@ metadata {
 			state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..5000)") {
+		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..4500)") {
 			state "colorTemperature", action: "color temperature.setColorTemperature"
 		}
 
@@ -199,13 +199,13 @@ def setLevel(value) {
     sendEvent(name: "level", value: value)
 	if (value < 1) {
 		zigbee.setLevel(value,10) + 
-        zigbee.off()
-        sendEvent(name: "switch", value: "off")
+        off()
+        //sendEvent(name: "switch", value: "off")
 	}
 	else {
 		zigbee.setLevel(value,10) + 
-        zigbee.on()
-        sendEvent(name: "switch", value: "on")
+        on()
+        //sendEvent(name: "switch", value: "on")
 	}
 }
 
