@@ -163,6 +163,10 @@ def setColorTemperature(value) {
     def finalHex = swapEndianHex(hexF(tempInMired, 4))
     // def genericName = getGenericName(value)
     // log.debug "generic name is : $genericName"
+    if(value > 5000) 
+    	value = 5000
+    else if(value < 2700)
+    	value = 2700
     sendEvent(name: "colorTemperature", value: value)
     
     // sendEvent(name: "colorName", value: genericName)

@@ -28,7 +28,7 @@ metadata {
 		capability "Switch Level"
 		capability "Light"
 
-		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED_"
+		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED 2"
 	}
 
 	// UI tile definitions
@@ -49,7 +49,7 @@ metadata {
 			state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..4500)") {
+		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..5000)") {
 			state "colorTemperature", action: "color temperature.setColorTemperature"
 		}
 
@@ -57,6 +57,51 @@ metadata {
 		details(["switch", "colorTempSliderControl", "refresh"])
 	}
 }
+def parse(String description) {
+   log.info "description is $description"
+    
+    sendEvent(name: "unreachable", value: 0, displayed: false)
+    
+    if (description?.startsWith("read attr -")) {
+        def descMap = parseDescriptionAsMap(description)
+       // log.trace "descMap : $descMap"
+
+        if (descMap.cluster == "0300") {
+            if( descMap.attrId == "0007") {
+                def tempInMired = convertHexToInt(descMap.value)
+            	def tempInKelvin = Math.round(1000000/tempInMired)
+                log.debug "Color temperature returned is $tempInKelvin"
+            	sendEvent(name: "colorTemperature", value: tempInKelvin)
+            }
+        }
+        if(descMap.cluster == "0008"){
+            def dimmerValue = Math.round(convertHexToInt(descMap.value) * 100 / 255)
+            log.debug "dimmer value is $dimmerValue"
+            sendEvent(name: "level", value: dimmerValue)
+            //sendEvent(event)
+        }
+    }
+    else {
+        def name = description?.startsWith("on/off: ") ? "switch" : null
+		def value = null
+        if (name == "switch") {
+            value = (description?.endsWith(" 1") ? "on" : "off")
+        	if(value == 1){
+                on()
+            }
+            else{
+            	off()
+            }
+        }
+        
+        else { value = null }
+        def result = createEvent(name: name, value: value)
+        log.debug "Parse returned ${result?.descriptionText}"
+        return result
+    }
+
+}
+/*
 // Parse incoming device messages to generate events
 def parse(String description) {
    log.info "description is $description"
@@ -106,14 +151,14 @@ def parse(String description) {
     						}
     				}
     				else if (event.name == "level"){
-    						/*
+    						
                             if(event.level < 1){
     							log.debug "level less than 2"
-                                sendEvent(name : "switch", value : "off")
+                                off()
     						}
     						else{
-    							sendEvent(name : "switch", value : "on")
-    						}*/
+    							on()
+    						}
     						attname = "level"
     						attvalue = event.value
     				}
@@ -130,7 +175,7 @@ def parse(String description) {
     				return result
     		}
     }
-}
+}*/
 
 def parseDescriptionAsMap(description) {
     (description - "read attr - ").split(",").inject([:]) { map, param ->
@@ -159,6 +204,8 @@ def setColorTemperature(value) {
     def finalHex = swapEndianHex(hexF(tempInMired, 4))
     // def genericName = getGenericName(value)
     // log.debug "generic name is : $genericName"
+    if(value > 5000) value = 5000
+    else if (value < 2700) value = 2700
     sendEvent(name: "colorTemperature", value: value)
     
     // sendEvent(name: "colorName", value: genericName)
@@ -193,20 +240,18 @@ def configure(){
      "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 0x0300 {${device.zigbeeId}} {}"
  ]
 }
-
 def setLevel(value) {
 	log.trace "setLevel($value)"
+
+	if (value == 0) {
+		sendEvent(name: "switch", value: "off")
+	}
+	else{
+		sendEvent(name: "switch", value: "on")
+
+	}
     sendEvent(name: "level", value: value)
-	if (value < 1) {
-		zigbee.setLevel(value,10) + 
-        off()
-        //sendEvent(name: "switch", value: "off")
-	}
-	else {
-		zigbee.setLevel(value,10) + 
-        on()
-        //sendEvent(name: "switch", value: "on")
-	}
+	zigbee.setLevel(value,5)
 }
 
 private getEndpointId() {
@@ -271,13 +316,11 @@ private Integer convertCCTrangeIn(val){
 }
 
 def installed() {
-/*
     on() +
-    setLevel(100) +
+    setLevel(10) +
     setColorTemperature(3000) +
     sendEvent(name: "switch", value: "on") +
     sendEvent(name: "level", value: 100) +
     sendEvent(name: "colorTemperature", value: 3000) +
-    */
     configure()
 }
