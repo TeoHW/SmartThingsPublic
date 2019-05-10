@@ -49,7 +49,7 @@ metadata {
 			state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: false, range: "(2700..5000)") {
+		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..5000)") {
 			state "colorTemperature", action: "color temperature.setColorTemperature"
 		}
 
@@ -106,13 +106,14 @@ def parse(String description) {
     						}
     				}
     				else if (event.name == "level"){
-    						if(event.level < 1){
+    						/*
+                            if(event.level < 1){
     							log.debug "level less than 2"
                                 sendEvent(name : "switch", value : "off")
     						}
     						else{
     							sendEvent(name : "switch", value : "on")
-    						}
+    						}*/
     						attname = "level"
     						attvalue = event.value
     				}
@@ -195,18 +196,17 @@ def configure(){
 
 def setLevel(value) {
 	log.trace "setLevel($value)"
-    
-	if (value < 1) {
-		sendEvent(name: "switch", value: "off")
-	}
-	else if (device.currentValue("switch") == "off") {
-		sendEvent(name: "switch", value: "on")
-
-	}
     sendEvent(name: "level", value: value)
-
-	zigbee.setLevel(value,10)
-
+	if (value < 1) {
+		zigbee.setLevel(value,10) + 
+        zigbee.off()
+        sendEvent(name: "switch", value: "off")
+	}
+	else {
+		zigbee.setLevel(value,10) + 
+        zigbee.on()
+        sendEvent(name: "switch", value: "on")
+	}
 }
 
 private getEndpointId() {
