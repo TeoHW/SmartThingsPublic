@@ -28,12 +28,7 @@ metadata {
 		capability "Switch Level"
 		capability "Light"
 
-		attribute "colorName", "string"
-
-
-		// Generic
-		fingerprint profileId: "0104", deviceId: "010C", inClusters: "0006, 0008, 0300"// deviceId 010C = "White color temperature light"
-		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300",  manufacturer: "SAMSUNG00", model: "ITMBZ", deviceJoinName: "SLED"
+		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED_"
 	}
 
 	// UI tile definitions
@@ -57,121 +52,232 @@ metadata {
 		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: false, range: "(2700..5000)") {
 			state "colorTemperature", action: "color temperature.setColorTemperature"
 		}
-		valueTile("colorName", "device.colorName", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-			state "colorName", label: '${currentValue}'
-		}
 
 		main(["switch"])
-		details(["switch", "colorTempSliderControl", "colorName", "refresh"])
+		details(["switch", "colorTempSliderControl", "refresh"])
 	}
 }
-
-// Globals
-private getMOVE_TO_COLOR_TEMPERATURE_COMMAND() { 0x0A }
-
-private getCOLOR_CONTROL_CLUSTER() { 0x0300 }
-
-private getATTRIBUTE_COLOR_TEMPERATURE() { 0x0007 }
-
 // Parse incoming device messages to generate events
 def parse(String description) {
-	log.debug "description is $description"
-	def event = zigbee.getEvent(description)
-	if (event) {
-		if (event.name == "level" && event.value == 0) {
-		} else {
-			if (event.name == "colorTemperature") {
-				setGenericName(event.value)
-			}
-			sendEvent(event)
-		}
-	} else {
-		def cluster = zigbee.parse(description)
+   log.info "description is $description"
+   
+    if (description?.startsWith("read attr -")) {
+        def descMap = parseDescriptionAsMap(description)
+        log.trace "descMap : $descMap"
 
-		if (cluster && cluster.clusterId == 0x0006 && cluster.command == 0x07) {
-			if (cluster.data[0] == 0x00) {
-				log.debug "ON/OFF REPORTING CONFIG RESPONSE: " + cluster
-				sendEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-			} else {
-				log.warn "ON/OFF REPORTING CONFIG FAILED- error code:${cluster.data[0]}"
-			}
-		} else {
-			log.warn "DID NOT PARSE MESSAGE for description : $description"
-			log.debug "${cluster}"
-		}
-	}
+        if (descMap.cluster == "0300") {	// color control cluster
+            if( descMap.attrId == "0007") {		// colortemperature attribute
+                def tempInMired = convertHexToInt(descMap.value)
+             		def tempInKelvin = Math.round(1000000/tempInMired)
+                log.debug "Color temperature returned is $tempInKelvin"
+                
+             		sendEvent(name: "colorTemperature", value: convertCCTrangeIn(tempInKelvin))
+            }
+        }
+        else if(descMap.cluster == "0008"){	// level cluster
+            def dimmerValue = Math.round(convertHexToInt(descMap.value) * 100 / 255)	// convert percent
+            log.debug "dimmer value is $dimmerValue"
+            sendEvent(name: "level", value: dimmerValue)
+        }
+        else if(descMap.cluster == "0006"){	// onoff cluster
+            if(convertHexToInt(descMap.value)>0){
+            	sendEvent(name : "switch", value : "on")
+            	log.debug "Light On"
+            }
+            else{
+            	sendEvent(name : "switch", value : "off")
+            	log.debug "Light Off"
+            }
+        }
+    }
+    else {
+    		def event = zigbee.getEvent(description)
+    		def attname = null;
+    		def attvalue = null;
+    		if(event){
+    				if(event.name == "switch"){
+    						if(event.value == "on"){
+    							attname = "switch"
+    							attvalue "on"
+    						}
+    						else if(event.value == "off"){
+    						  attname = "switch"
+    							attvalue "off"
+    						}
+    				}
+    				else if (event.name == "level"){
+    						if(event.level < 1){
+    							log.debug "level less than 2"
+                                sendEvent(name : "switch", value : "off")
+    						}
+    						else{
+    							sendEvent(name : "switch", value : "on")
+    						}
+    						attname = "level"
+    						attvalue = event.value
+    				}
+    				else if(event.name == "colortemperature"){
+    						attname = "colortemperature"
+    						
+                            attvalue = event.value
+    						//setColorTemperature(event.value)
+    				}
+    				else{
+    						sendEvent(event)
+    				}
+    				def result = creatEvent(name : attname, value : attvalue)
+    				return result
+    		}
+    }
 }
 
-def off() {
-	zigbee.off()
+def parseDescriptionAsMap(description) {
+    (description - "read attr - ").split(",").inject([:]) { map, param ->
+        def nameAndValue = param.split(":")
+        map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
+    }
 }
 
 def on() {
-	zigbee.on()
+    // just assume it works for now
+    log.debug "on()"
+    sendEvent(name: "switch", value: "on")
+    zigbee.on()
 }
 
-def setLevel(value, rate = null) {
-	zigbee.setLevel(value)
-}
-
-/**
- * PING is used by Device-Watch in attempt to reach the Device
- * */
-def ping() {
-	return zigbee.onOffRefresh()
-}
-
-def refresh() {
-	zigbee.onOffRefresh() +
-			zigbee.levelRefresh() +
-			zigbee.colorTemperatureRefresh() +
-			zigbee.onOffConfig(0, 300) +
-			zigbee.levelConfig()
-}
-
-def configure() {
-	log.debug "Configuring Reporting and Bindings."
-	// Device-Watch allows 2 check-in misses from device + ping (plus 1 min lag time)
-	// enrolls with default periodic reporting until newer 5 min interval is confirmed
-	sendEvent(name: "checkInterval", value: 2 * 10 * 60 + 1 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
-
-	// OnOff minReportTime 0 seconds, maxReportTime 5 min. Reporting interval if no activity
-	refresh()
+def off() {
+    // just assume it works for now
+    log.debug "off()"
+    sendEvent(name: "switch", value: "off")
+    zigbee.off()
 }
 
 def setColorTemperature(value) {
-	value = value as Integer
-	def tempInMired = Math.round(1000000 / value)
-	def finalHex = zigbee.swapEndianHex(zigbee.convertToHexString(tempInMired, 4))
-
-	List cmds = []
-	if (device.getDataValue("manufacturer") == "sengled" && device.getDataValue("model") == "Z01-A19NAE26") {
-		// Sengled Element Plus will ignore the command if the transition time is 0x0000
-		cmds << zigbee.command(COLOR_CONTROL_CLUSTER, MOVE_TO_COLOR_TEMPERATURE_COMMAND, "$finalHex 0100")
-	} else {
-		cmds << zigbee.command(COLOR_CONTROL_CLUSTER, MOVE_TO_COLOR_TEMPERATURE_COMMAND, "$finalHex 0000")
-	}
-	cmds << zigbee.readAttribute(COLOR_CONTROL_CLUSTER, ATTRIBUTE_COLOR_TEMPERATURE)
-	cmds
+	def new_value = convertCCTrangeOut(value)
+    def tempInMired = Math.round(1000000/new_value)
+    def finalHex = swapEndianHex(hexF(tempInMired, 4))
+    // def genericName = getGenericName(value)
+    // log.debug "generic name is : $genericName"
+    sendEvent(name: "colorTemperature", value: value)
+    
+    // sendEvent(name: "colorName", value: genericName)
+		def cmds = []
+    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 2000}"
+    //cmds << zigbee.command(0x0300, 0x0a, "$finalHex 0100")
+    cmds
 }
 
-//Naming based on the wiki article here: http://en.wikipedia.org/wiki/Color_temperature
-def setGenericName(value) {
-	if (value != null) {
-		def genericName = "White"
-		if (value < 3300) {
-			genericName = "Soft White"
-		} else if (value < 4150) {
-			genericName = "Moonlight"
-		} else if (value <= 5000) {
-			genericName = "Cool White"
-		} else if (value >= 5000) {
-			genericName = "Daylight"
-		}
-		sendEvent(name: "colorName", value: genericName)
+
+
+def refresh() {
+// Ping the device with color as to not get out of sync 
+    [
+    "st rattr 0x${device.deviceNetworkId} ${endpointId} 6 0", "delay 500",
+    "st rattr 0x${device.deviceNetworkId} ${endpointId} 8 0", "delay 500",
+    "st rattr 0x${device.deviceNetworkId} ${endpointId} 0x0300 7","delay 500",
+    ]
+}
+
+def poll(){
+ log.debug "Poll is calling refresh"
+ refresh()
+}
+
+def configure(){
+ log.debug "Initiating configuration reporting and binding"
+    
+    [  
+     "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 6 {${device.zigbeeId}} {}", "delay 1000",
+     "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 8 {${device.zigbeeId}} {}", "delay 1000",
+     "zdo bind 0x${device.deviceNetworkId} ${endpointId} 1 0x0300 {${device.zigbeeId}} {}"
+ ]
+}
+
+def setLevel(value) {
+	log.trace "setLevel($value)"
+    
+	if (value < 1) {
+		sendEvent(name: "switch", value: "off")
 	}
+	else if (device.currentValue("switch") == "off") {
+		sendEvent(name: "switch", value: "on")
+
+	}
+    sendEvent(name: "level", value: value)
+
+	zigbee.setLevel(value,10)
+
+}
+
+private getEndpointId() {
+ new BigInteger(device.endpointId, 16).toString()
+}
+
+private hex(value, width=2) {
+ def s = new BigInteger(Math.round(value).toString()).toString(16)
+ while (s.size() < width) {
+  s = "0" + s
+ }
+ s
+}
+
+private evenHex(value){
+    def s = new BigInteger(Math.round(value).toString()).toString(16)
+    while (s.size() % 2 != 0) {
+        s = "0" + s
+    }
+    s
+}
+
+//Need to reverse array of size 2
+private byte[] reverseArray(byte[] array) {
+    byte tmp;
+    tmp = array[1];
+    array[1] = array[0];
+    array[0] = tmp;
+    return array
+}
+
+private hexF(value, width) {
+ def s = new BigInteger(Math.round(value).toString()).toString(16)
+ while (s.size() < width) {
+  s = "0" + s
+ }
+ s
+}
+
+private String swapEndianHex(String hex) {
+    reverseArray(hex.decodeHex()).encodeHex()
+}
+
+private Integer convertHexToInt(hex) {
+ Integer.parseInt(hex,16)
+}
+
+private Integer convertCCTrangeOut(val){
+	def ret = val
+    if(val <= 100){
+    	ret = val * 2300 /100 + 2700
+    }
+    return ret
+}
+
+private Integer convertCCTrangeIn(val){
+	ret = val
+    if(device.currentValue("colortemperature") <= 100){
+    	ret = (val-2700) * 100 / 2300
+    }
+    return ret
 }
 
 def installed() {
-        sendEvent(name: "level", value: 100)
+/*
+    on() +
+    setLevel(100) +
+    setColorTemperature(3000) +
+    sendEvent(name: "switch", value: "on") +
+    sendEvent(name: "level", value: 100) +
+    sendEvent(name: "colorTemperature", value: 3000) +
+    */
+    configure()
 }
