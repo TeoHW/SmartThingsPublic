@@ -27,8 +27,7 @@ metadata {
 		capability "Switch"
 		capability "Switch Level"
 		capability "Light"
-
-		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED 3"
+		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG00", model: "ITMBZ", deviceJoinName: "SLED 3"
 	}
 
 	// UI tile definitions
@@ -49,14 +48,15 @@ metadata {
 			state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..6500)") {
-			state "colorTemperature",label: '${currentValue} K', action: "color temperature.setColorTemperature"
+		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: false, range: "(2700..6500)") {
+			state "colorTemperature", action: "color temperature.setColorTemperature"
 		}
 
 		main(["switch"])
 		details(["switch", "colorTempSliderControl", "refresh"])
 	}
 }
+
 def parse(String description) {
    log.info "description is $description"
     
@@ -71,6 +71,9 @@ def parse(String description) {
                 def tempInMired = convertHexToInt(descMap.value)
             	def tempInKelvin = Math.round(1000000/tempInMired)
                 log.debug "Color temperature returned is $tempInKelvin"
+                //if(flag == true)
+                //	sendEvent(name: "colorTemperature", value: 5001)
+                currentColorTemp = tempInKelvin
             	sendEvent(name: "colorTemperature", value: tempInKelvin)
             }
         }
@@ -80,10 +83,21 @@ def parse(String description) {
             sendEvent(name: "level", value: dimmerValue)
             //sendEvent(event)
         }
+        else if(descMap.cluster == "0006"){	// onoff cluster
+            if(convertHexToInt(descMap.value)>0){
+            	sendEvent(name : "switch", value : "on")
+            	log.debug "Light On"
+            }
+            else{
+            	sendEvent(name : "switch", value : "off")
+            	log.debug "Light Off"
+            }
+        }
     }
     else {
-        def name = description?.startsWith("on/off: ") ? "switch" : null
-		def value = null
+        //def name = description?.startsWith("on/off: ") ? "switch" : null
+		//def value = null
+        /*
         if (name == "switch") {
             value = (description?.endsWith(" 1") ? "on" : "off")
         	if(value == 1){
@@ -94,7 +108,7 @@ def parse(String description) {
             }
         }
         
-        else { value = null }
+        else { value = null }*/
         def result = createEvent(name: name, value: value)
         log.debug "Parse returned ${result?.descriptionText}"
         return result
@@ -206,10 +220,12 @@ def setColorTemperature(value) {
     // log.debug "generic name is : $genericName"
     if(value > 5000) value = 5000
     else if (value < 2700) value = 2700
-    sendEvent(name: "colorTemperature", value: value)
+    //if(currentColorTemp == value) flag = true
+    //currentColorTemp = value
+    //sendEvent(name: "colorTemperature", value: value)
     
     // sendEvent(name: "colorName", value: genericName)
-		def cmds = []
+	def cmds = []
     cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 0000}"
     cmds << zigbee.readAttribute(0x0300, 0x0007)
     //cmds << zigbee.command(0x0300, 0x0a, "$finalHex 0100")
@@ -317,6 +333,7 @@ private Integer convertCCTrangeIn(val){
 }
 
 def installed() {
+	//flag = false
     on() +
     setLevel(10) +
     setColorTemperature(3000) +
