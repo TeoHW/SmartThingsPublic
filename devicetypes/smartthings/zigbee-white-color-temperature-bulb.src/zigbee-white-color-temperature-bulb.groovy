@@ -28,7 +28,7 @@ metadata {
 		capability "Switch Level"
 		capability "Light"
 
-		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED 2"
+		fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SLED 3"
 	}
 
 	// UI tile definitions
@@ -49,8 +49,8 @@ metadata {
 			state "default", label: "", action: "refresh.refresh", icon: "st.secondary.refresh"
 		}
 
-		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..5000)") {
-			state "colorTemperature", action: "color temperature.setColorTemperature"
+		controlTile("colorTempSliderControl", "device.colorTemperature", "slider", width: 4, height: 2, inactiveLabel: true, range: "(2700..6500)") {
+			state "colorTemperature",label: '${currentValue} K', action: "color temperature.setColorTemperature"
 		}
 
 		main(["switch"])
@@ -210,7 +210,8 @@ def setColorTemperature(value) {
     
     // sendEvent(name: "colorName", value: genericName)
 		def cmds = []
-    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 2000}"
+    cmds << "st cmd 0x${device.deviceNetworkId} ${endpointId} 0x0300 0x0a {${finalHex} 0000}"
+    cmds << zigbee.readAttribute(0x0300, 0x0007)
     //cmds << zigbee.command(0x0300, 0x0a, "$finalHex 0100")
     cmds
 }
