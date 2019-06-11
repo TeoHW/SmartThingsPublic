@@ -13,7 +13,7 @@
  */
 
 metadata {
-    definition (name: "ZLL White Color Temperature Bulb 5000K", namespace: "smartthings", author: "SmartThings", ocfDeviceType: "oic.d.light", runLocally: true, minHubCoreVersion: '000.023.00001', executeCommandsLocally: true, genericHandler: "ZLL") {
+    definition (name: "ZLL White Color Temperature Bulb 5000K", namespace: "smartthings", author: "SmartThings",runLocally: true, minHubCoreVersion: '000.022.00001', executeCommandsLocally: true, genericHandler: "Zigbee") {
 
         capability "Actuator"
         capability "Color Temperature"
@@ -25,19 +25,7 @@ metadata {
         capability "Health Check"
 
         attribute "colorName", "string"
-
-        fingerprint profileId: "C05E", deviceId: "0220", inClusters: "0000, 0004, 0003, 0006, 0008, 0005, 0300", outClusters: "0019", manufacturer: "Eaton", model: "Halo_RL5601", deviceJoinName: "Halo RL56"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", outClusters: "0019", manufacturer: "innr", model: "RS 128 T", deviceJoinName: "Innr Smart Spot Tunable White"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", outClusters: "0019", manufacturer: "innr", model: "RB 178 T", deviceJoinName: "Innr Smart Bulb Tunable White"
-        fingerprint inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E26 WS clear 950lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb GU10 WS 400lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E12 WS opal 400lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E26 WS opal 980lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E27 WS clear 950lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E14 WS opal 400lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300, 0B05, 1000", outClusters: "0005, 0019, 0020, 1000", manufacturer: "IKEA of Sweden", model: "TRADFRI bulb E27 WS opal 980lm", deviceJoinName: "IKEA TRÅDFRI White Spectrum LED Bulb", mnmn: "SmartThings", vid: "generic-color-temperature-bulb-2200K-4000K"
-        fingerprint profileId: "C05E", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0300", outClusters: "0019", manufacturer: "innr", model: "RB 148 T", deviceJoinName: "Innr Smart Bulb Tunable White"
-		fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300",  manufacturer: "SAMSUNG00", model: "ITMBZ", deviceJoinName: "Improved SLIGHT"
+		fingerprint profileId: "0104", inClusters: "0000,0003,0004,0005,0006,0008,0300",  manufacturer: "SAMSUNG", model: "ITMBZ", deviceJoinName: "SAMSUNG LED Light"
     }
 
     // UI tile definitions
@@ -73,6 +61,19 @@ metadata {
     }
 }
 
+
+
+def parseDescriptionAsMap(description) {
+    (description - "read attr - ").split(",").inject([:]) { map, param ->
+        def nameAndValue = param.split(":")
+        map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
+    }
+}
+private Integer convertHexToInt(hex) {
+ Integer.parseInt(hex,16)
+}
+
+
 // Globals
 private getMOVE_TO_COLOR_TEMPERATURE_COMMAND() { 0x0A }
 private getCOLOR_CONTROL_CLUSTER() { 0x0300 }
@@ -80,47 +81,47 @@ private getATTRIBUTE_COLOR_TEMPERATURE() { 0x0007 }
 
 // Parse incoming device messages to generate events
 def parse(String description) {
-    log.debug "description is $description"
+    log.debug "parse: description is $description"
     def event = zigbee.getEvent(description)
     if (event) {
         if (event.name == "colorTemperature") {
             event.unit = "K"
             setGenericName(event.value)
         }
-        log.debug "Sending event $event"
+        log.debug "parse: Sending event $event"
         sendEvent(event)
     }
     else {
-        log.warn "DID NOT PARSE MESSAGE for description : $description"
+        log.warn "parse: DID NOT PARSE MESSAGE for description : $description"
         log.debug zigbee.parseDescriptionAsMap(description)
     }
 }
 
+
 def off() {
-    zigbee.off() + ["delay 1500"] + zigbee.onOffRefresh()
+    zigbee.off()// + ["delay 1500"] + zigbee.onOffRefresh()
+    //sendEvent(name: "switch", value: "off")
 }
 
 def on() {
-    zigbee.on() + ["delay 1500"] + zigbee.onOffRefresh()
+    zigbee.on()// + ["delay 1500"] + zigbee.onOffRefresh()
+    //sendEvent(name: "switch", value: "on")
 }
 
 def setLevel(value, rate = null) {
-    zigbee.setLevel(value) + zigbee.onOffRefresh() + zigbee.levelRefresh()
+    if (device.currentValue("switch") == "off"){
+        sendEvent(name: "switch", value: "on")
+    }
+    zigbee.setLevel(value) //+ ["delay 1500"] + zigbee.levelRefresh() + zigbee.onOffRefresh()
 }
 
 def refresh() {
-    def cmds = zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.colorTemperatureRefresh()
-
-    // Do NOT config if the device is the Eaton Halo_LT01, it responds with "switch:off" to onOffConfig, and maybe other weird things with the others
-    if (!((device.getDataValue("manufacturer") == "Eaton") && (device.getDataValue("model") == "Halo_LT01"))) {
-        cmds += zigbee.onOffConfig() + zigbee.levelConfig()
-    }
-
+    def cmds =  zigbee.levelRefresh() + zigbee.colorTemperatureRefresh() + zigbee.onOffRefresh() 
     cmds
 }
 
 def poll() {
-    zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.colorTemperatureRefresh()
+    zigbee.levelRefresh()+ zigbee.colorTemperatureRefresh() + zigbee.onOffRefresh()
 }
 
 /**
@@ -151,7 +152,6 @@ def configureHealthCheck() {
 def configure() {
     log.debug "configure()"
     configureHealthCheck()
-    // Implementation note: for the Eaton Halo_LT01, it responds with "switch:off" to onOffConfig, so be sure this is before the call to onOffRefresh
     zigbee.onOffConfig() + zigbee.levelConfig() + zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.colorTemperatureRefresh()
 }
 
@@ -164,8 +164,9 @@ def setColorTemperature(value) {
     value = value as Integer
     def tempInMired = Math.round(1000000 / value)
     def finalHex = zigbee.swapEndianHex(zigbee.convertToHexString(tempInMired, 4))
-
+	sendEvent(name: "colorTemperature", value: value)
     zigbee.command(COLOR_CONTROL_CLUSTER, MOVE_TO_COLOR_TEMPERATURE_COMMAND, "$finalHex 0000") +
+    ["delay 3000"] + 
     zigbee.readAttribute(COLOR_CONTROL_CLUSTER, ATTRIBUTE_COLOR_TEMPERATURE)
 }
 
@@ -182,6 +183,13 @@ def setGenericName(value){
         } else {
             genericName = "Daylight"
         }
-        sendEvent(name: "colorName", value: genericName, displayed: false)
+        sendEvent(name: "colorName", value: genericName, displayed: true)
     }
+}
+
+def installed() {
+    sendEvent(name: "switch", value: "on") +
+    sendEvent(name: "level", value: 100) +
+    sendEvent(name: "colorTemperature", value: 3000) +
+    configure()
 }
